@@ -531,13 +531,71 @@ static void run_with_runahead(const int frames)
 	emulator->unserialize(state);
 }
 
+bool GetAudioEnabled()
+{
+    int audioVideoEnableFlags = -1;
+	bool audioEnabled = true;
+	
+    bool okay = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &audioVideoEnableFlags);
+    if (okay)
+    {
+        audioEnabled = 0 != (audioVideoEnableFlags & 2);
+	}
+	return audioEnabled;
+}
+
+bool GetVideoEnabled()
+{
+    int audioVideoEnableFlags = -1;
+	bool videoEnabled = true;
+	
+    bool okay = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &audioVideoEnableFlags);
+    if (okay)
+    {
+        videoEnabled = 0 != (audioVideoEnableFlags & 1);
+	}
+	return videoEnabled;
+}
+
+bool GetFastSavestates()
+{
+    int audioVideoEnableFlags = -1;
+	bool fastSavestates = true;
+	
+    bool okay = environ_cb(RETRO_ENVIRONMENT_GET_AUDIO_VIDEO_ENABLE, &audioVideoEnableFlags);
+    if (okay)
+    {
+        fastSavestates = 0 != (audioVideoEnableFlags & 4);
+	}
+	return fastSavestates;
+}
+
+bool GetIsFastForwarding()
+{
+	int is_fast_forwarding_flag = 0;
+	bool okay = environ_cb(RETRO_ENVIRONMENT_GET_FASTFORWARDING, &is_fast_forwarding_flag);
+	if (okay)
+	{
+		return is_fast_forwarding_flag != 0;
+	}
+	return false;
+}
+
 RETRO_API void retro_run()
 {
 	check_variables();
 	input_poll();
-
-	bool is_fast_forwarding = false;
-	environ_cb(RETRO_ENVIRONMENT_GET_FASTFORWARDING, &is_fast_forwarding);
+	
+	bool is_fast_forwarding = GetIsFastForwarding();
+	
+	//emulator->setDisableVideo(GetVideoEnabled() == 0);
+	//emulator->setDisableAudio(GetAudioEnabled() == 0);
+	
+	if (GetAudioEnabled() == 0 && GetVideoEnabled() == 0)
+		emulator->setRunAhead(true);
+	else
+		emulator->setRunAhead(false);
+	
 	if (is_fast_forwarding || run_ahead_frames == 0)
 		emulator->run();
 	else
@@ -546,12 +604,16 @@ RETRO_API void retro_run()
 
 RETRO_API size_t retro_serialize_size()
 {
-	return emulator->serialize().size();
+	bool fastSavestates = GetFastSavestates();
+	bool synchronize = !fastSavestates;
+	return emulator->serialize(synchronize).size();
 }
 
 RETRO_API bool retro_serialize(void *data, size_t size)
 {
-	memcpy(data, emulator->serialize().data(), size);
+	bool fastSavestates = GetFastSavestates();
+	bool synchronize = !fastSavestates;
+	memcpy(data, emulator->serialize(synchronize).data(), size);
 	return true;
 }
 
